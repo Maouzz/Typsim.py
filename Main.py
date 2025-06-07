@@ -8,7 +8,7 @@ import math
 class Data():
     #sets the referencetable, paragraphs and smaler variables 
     def __init__(self):
-        #generates referencetable to be referenced when Event.keysym != character symbol 
+        #generates referencetable to be referenced when event.keysym != character symbol 
         # e.g. "a" == "a" / "-" == "minus"
         with open(r"C:\Users\david\Code\VS-Code\Neuer Ordner\Referencetable.txt", encoding="utf-8") as f:
             self.referencetable = dict(
@@ -17,6 +17,10 @@ class Data():
 
         # px for calculating text lenght
         self.char_spacing = 22 
+
+        self.inputs_past_control = 0
+
+        self.initialised_fullscreen = False
 
         #prepares textgeneration
         self.gen = DocumentGenerator()
@@ -80,10 +84,10 @@ class GUI():
         self.textbox.focus_set()
     
     #binds the textbox inputs to the handel_keypress in controller
-    def onKeyPress(self,Event):
-        return self.controller.handel_keypress(Event)
+    def onKeyPress(self,event):
+        return self.controller.handel_keypress(event)
     
-    
+
 #handels calculations, checks and coordination
 class Controller():
     #initialises variabeles and delays set wigets()
@@ -122,17 +126,34 @@ class Controller():
     
     #handels the wpm timer, input reference and correction 
     #as well as end of exerpt operations
-    def handel_keypress(self,Event):
+    def handel_keypress(self,event):
+        #print(event.keysym)
 
         #for WPM
         if self.start_time == None:
             self.start_time = time.time()
+        
+        #delets the "f" input after going fullscreen 
+        if self.data.initialised_fullscreen == True:
+            self.gui.textbox.delete("end-1c","end")
+            self.data.initialised_fullscreen = False
+        
+        #count how many inputs have past since controle was last pressed 
+        if event.keysym == "Control_L":
+            self.data.inputs_past_control = 0
+        else:
+            self.data.inputs_past_control += 1
 
-        if len(self.data.definedText)>= len(self.gui.textbox.get('0.0',tk.END)):
+        #when 'f' follows on control it will initialise the fullscreen
+        if event.keysym == "f" and self.data.inputs_past_control == 1:
+            self.handel_fullscreen()
+            self.data.initialised_fullscreen = True
+            
+        if (len(self.data.definedText)>= len(self.gui.textbox.get('0.0',tk.END)) and self.data.initialised_fullscreen == False):
             
             #checks if input is in referencetable
             for k, v in self.data.referencetable.items():
-                if Event.keysym == v:
+                if event.keysym == v:
                     if self.data.definedText[len(self.gui.textbox.get('0.0',tk.END)) - 1] == k:
                         self.inutCorrect()
                         break
@@ -141,26 +162,31 @@ class Controller():
                         break
             else:
                 #checks if the input is incorect
-                if Event.keysym not in ('Shift_L', 'BackSpace','Caps_Lock'):
-                    if self.data.definedText[len(self.gui.textbox.get('0.0',tk.END)) - 1] != Event.keysym:
+                if event.keysym not in ('Shift_L', 'BackSpace','Caps_Lock','Multi_key',"Control_L"):
+                    if self.data.definedText[len(self.gui.textbox.get('0.0',tk.END)) - 1] != event.keysym:
                         self.inputInorrect()
                         
                         #extra rules for space
-                        if Event.keysym != 'space' and self.data.definedText[len(self.gui.textbox.get('0.0',tk.END)) - 1] == ' ':
+                        if event.keysym != 'space' and self.data.definedText[len(self.gui.textbox.get('0.0',tk.END)) - 1] == ' ':
                             self.wigetarray[len(self.gui.textbox.get('0.0',tk.END)) - 1].config(fg="red",text="_")
                         
-                        if Event.keysym == 'space' and self.data.definedText[len(self.gui.textbox.get('0.0',tk.END)) - 1] == ' ':
+                        if event.keysym == 'space' and self.data.definedText[len(self.gui.textbox.get('0.0',tk.END)) - 1] == ' ':
                             self.wigetarray[len(self.gui.textbox.get('0.0',tk.END)) - 1].config(text=" ")
                     #on correct
                     else:
                         self.inutCorrect()
-                
+
             #on backspace
-            if Event.keysym == 'BackSpace':
+            if event.keysym == 'BackSpace':
                 self.input_return()
 
-        #when the text is finished
+        #on backspace
+        elif event.keysym == 'BackSpace':
+            self.input_return()
+
+        #when the text is finished and input is not "BackSpace"
         else:
+            
             #checks if the text is wrong
             textwrong = False
             for i in range(len(self.data.definedText)):
@@ -168,14 +194,14 @@ class Controller():
                     textboxiterator2 =  "1." + str(i + 1)  
                     if self.gui.textbox.get(textboxiterator1,textboxiterator2) != self.data.definedText[i]:
                         textwrong = True
-                        if Event.keysym != "BackSpace":
+                        if event.keysym != "BackSpace":
                             return "break"
                         else:
                             self.input_return()
             
             #if its correct               
-            if textwrong == False:
-                
+            if textwrong == False and event.keysym == "space":
+
                 #generates new paragraph if the last one is exausted
                 if self.data.spaceseeker + 15 >= len(self.data.paragraph):
                     self.paragraph = self.data.gen.paragraph()
@@ -208,9 +234,8 @@ class Controller():
                 self.delete_wigets()
                 self.set_wigets()
                 
-                #if the text is correct it will 
-                #bloch the input from being insertet in the textbox if its not "Escape"
-                return 'break'
+            #bloch the input from being insertet in the textbox
+            return 'break'
 
     #sets the currently last typed wiget to "orange"
     def input_return(self):
@@ -272,7 +297,7 @@ class Controller():
         self.gui.average_wpm.place(x=average_wpm_pos,y=int(frame_height * 0.75))
 
     #sets the window to fullscreen or back to window size if already in fullscreen
-    def handel_fullscreen(self,Event=None):
+    def handel_fullscreen(self,event=None):
 
         self.fullscreen_var = False
         if self.gui.root.winfo_width() >= self.gui.root.winfo_screenwidth() - 10:
@@ -290,6 +315,7 @@ class Controller():
     #when the window gets changed it checks if a new resize is apropriate
     def on_resize(self,event):
         
+        #checks if wigetarray exist so no error is thrown 
         if hasattr(controller,"wigetarray"):
             
             new_size = (event.width, event.height)

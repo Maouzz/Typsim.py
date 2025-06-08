@@ -4,6 +4,7 @@ from essential_generators import DocumentGenerator
 import time
 import math
 
+
 #haldels data
 class Data():
     #sets the referencetable, paragraphs and smaler variables 
@@ -15,15 +16,24 @@ class Data():
                 line.strip().split(" = ") for line in f if " = " in line
             )
 
-        # px for calculating text lenght
+        # px, for calculating text lenght
         self.char_spacing = 22 
 
         self.inputs_past_control = 0
 
         self.initialised_fullscreen = False
 
+        self.average_mistakes = 0
+        self.mistake_array = []
+
         #prepares textgeneration
         self.gen = DocumentGenerator()
+
+        #X word are generated
+        self.gen.init_word_cache(500)
+
+        #X many cnetences are gnenrated
+        self.gen.init_sentence_cache(500)
 
         #generates the paragraph 
         #and makes sure the paragraph is long enough 
@@ -37,7 +47,7 @@ class Data():
         self.definedText = []
         self.average_wpm_array = []
 
-        #generates exerpt (e.g. from paragrph[o] to paragraph[5])
+        #generates exerpt (e.g. from paragraph[o] to paragraph[5])
         self.generateText(0,5)
     
     #cuts paragraph into exerpts 
@@ -129,6 +139,7 @@ class Controller():
     def handel_keypress(self,event):
         #print(event.keysym)
 
+        self.len_textbox =len(self.gui.textbox.get('0.0',tk.END))
         #for WPM
         if self.start_time == None:
             self.start_time = time.time()
@@ -149,32 +160,39 @@ class Controller():
             self.handel_fullscreen()
             self.data.initialised_fullscreen = True
             
-        if (len(self.data.definedText)>= len(self.gui.textbox.get('0.0',tk.END)) and self.data.initialised_fullscreen == False):
+        if (len(self.data.definedText)>= self.len_textbox and self.data.initialised_fullscreen == False):
             
             #checks if input is in referencetable
             for k, v in self.data.referencetable.items():
+
+                #if it finds the keysym in referencetable
                 if event.keysym == v:
-                    if self.data.definedText[len(self.gui.textbox.get('0.0',tk.END)) - 1] == k:
+
+                    # if the definedText is equal to the coresponding string 
+                    if self.data.definedText[self.len_textbox - 1] == k:
                         self.inutCorrect()
                         break
                     else:
+                        self.hanel_mistakes(self.data.definedText[self.len_textbox - 1])
                         self.inputInorrect()
                         break
             else:
                 #checks if the input is incorect
-                if event.keysym not in ('Shift_L', 'BackSpace','Caps_Lock','Multi_key',"Control_L"):
-                    if self.data.definedText[len(self.gui.textbox.get('0.0',tk.END)) - 1] != event.keysym:
+                if event.keysym not in ('Shift_L', 'BackSpace','Caps_Lock','Multi_key',"Control_L",'space'):
+                    if self.data.definedText[self.len_textbox - 1] != event.keysym:
                         self.inputInorrect()
+                        self.hanel_mistakes(self.data.definedText[self.len_textbox - 1])
                         
-                        #extra rules for space
-                        if event.keysym != 'space' and self.data.definedText[len(self.gui.textbox.get('0.0',tk.END)) - 1] == ' ':
-                            self.wigetarray[len(self.gui.textbox.get('0.0',tk.END)) - 1].config(fg="red",text="_")
-                        
-                        if event.keysym == 'space' and self.data.definedText[len(self.gui.textbox.get('0.0',tk.END)) - 1] == ' ':
-                            self.wigetarray[len(self.gui.textbox.get('0.0',tk.END)) - 1].config(text=" ")
                     #on correct
                     else:
                         self.inutCorrect()
+
+                #extra rules for space
+                if event.keysym != 'space' and self.data.definedText[self.len_textbox - 1] == ' ':
+                    self.wigetarray[self.len_textbox - 1].config(fg="red",text="_")
+                
+                if event.keysym == 'space' and self.data.definedText[self.len_textbox - 1] == ' ':
+                    self.wigetarray[self.len_textbox - 1].config(text=" ")
 
             #on backspace
             if event.keysym == 'BackSpace':
@@ -239,19 +257,19 @@ class Controller():
 
     #sets the currently last typed wiget to "orange"
     def input_return(self):
-        if len(self.gui.textbox.get('0.0',tk.END)) - 1 > 0:
-            textboxposition = len(self.gui.textbox.get('0.0',tk.END)) - 2
+        if self.len_textbox - 1 > 0:
+            textboxposition = self.len_textbox - 2
         else:
-            textboxposition = len(self.gui.textbox.get('0.0',tk.END)) - 1
+            textboxposition = self.len_textbox - 1
         self.wigetarray[textboxposition].config(fg="orange")
 
     #sets the currently last typed wiget to "red"
     def inputInorrect(self):
-        self.wigetarray[len(self.gui.textbox.get('0.0',tk.END)) - 1].config(fg="red")
+        self.wigetarray[self.len_textbox - 1].config(fg="red")
 
     #sets the currently last typed wiget to "green"
     def inutCorrect(self):
-        self.wigetarray[len(self.gui.textbox.get('0.0',tk.END)) - 1].config(fg="green")
+        self.wigetarray[self.len_textbox - 1].config(fg="green")
 
     #generates the wiget coordinates to cordinatarray dynamicly bases on the screen width
     def generateCordinates(self):
@@ -339,7 +357,18 @@ class Controller():
         
         self.resize_after_id = None
              
-        
+    #documents the mistakes and there frequency 
+    def hanel_mistakes(self,char):
+
+        for i in range(len(self.data.mistake_array)):
+
+            if self.data.mistake_array[i][0] == char:
+                self.data.mistake_array[i][1] += 1
+                break
+
+        else:
+            self.data.mistake_array.append([char,1])
+        print(self.data.mistake_array)
 
 
 if __name__ == "__main__":

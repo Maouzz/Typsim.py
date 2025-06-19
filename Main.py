@@ -3,7 +3,8 @@ from tkinter import *
 from essential_generators import DocumentGenerator
 import time
 import math
-
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 #haldels data
 class Data():
@@ -19,7 +20,7 @@ class Data():
         # px, for calculating text lenght
         self.char_spacing = 22 
 
-        self.inputs_past_control = 0
+        self.input_past_control = False
 
         self.initialised_fullscreen = False
 
@@ -73,26 +74,51 @@ class Data():
 class GUI():
     #sets the window with all its components exept the character wigets
     def __init__(self,controller):
+
         self.controller = controller
 
         self.root = tk.Tk()
         self.root.geometry("800x500")
+
         self.fullscreen = False
 
         self.root.bind("<Multi_key>", controller.handel_fullscreen)
 
-        self.frame = Frame(self.root,height= 600,width=500,bg="black")
-        self.frame.pack(fill=BOTH,expand=True)
+        #for switching the screens (frame,stat_frame)
+        self.container = tk.Frame(self.root)
+        self.container.pack(fill="both", expand=True)
 
-        self.wpm_meter = Label(text="WPM:  ",bg="black",fg="orange",font=('Courier New',20))
+        self.frame = Frame(self.container, bg="black")
+        self.frame.place(relheight=1, relwidth=1)
+
+        self.stat_frame = Frame(self.container, bg="black")
+        self.stat_frame.place(relheight=1, relwidth=1)
+
+        self.stat_button = Button(self.stat_frame,text="Back",command=self.controller.show_main_frame,font=('Courier New',10),fg="black",bg="orange")
+        self.stat_button.place(x=0,y=0)
         
-        self.average_wpm = Label(text="average WPM:  ",fg="orange",bg="black",font=('Courier New',20))
+        """
+        insert everything in stat_frame here
+        """
+        
+        self.frame.tkraise()
 
+        #declairs the wpm labels 
+        self.wpm_meter = Label(self.frame,text="WPM:  ",bg="black",fg="orange",font=('Courier New',20))
+        
+        self.average_wpm = Label(self.frame,text="average WPM:  ",fg="orange",bg="black",font=('Courier New',20))
+
+        #sets the textbox so that the focus is on it but it is located out of the frame
+        #so that you can tipe but cant see it 
         self.textbox = tk.Text(self.root,height = 0)
         self.textbox.place(y=2000) 
         self.textbox.bind("<KeyPress>", self.onKeyPress)
         self.textbox.focus_set()
-    
+
+        self.stat_button = Button(self.frame,text="Stats",bg="orange",fg="black",activebackground="green",
+                                  highlightcolor="orange",relief="solid",font=('Courier New',8),command=self.controller.show_stat_frame)
+        self.stat_button.place(x=0)
+
     #binds the textbox inputs to the handel_keypress in controller
     def onKeyPress(self,event):
         return self.controller.handel_keypress(event)
@@ -102,8 +128,10 @@ class GUI():
 class Controller():
     #initialises variabeles and delays set wigets()
     def __init__(self):
+
         self.data = Data()
         self.gui = GUI(self)
+        self.stat_manager = Stat_manager(self)
 
         self.exit_fullscreen_var = False
         self.start_time = None
@@ -149,14 +177,16 @@ class Controller():
             self.gui.textbox.delete("end-1c","end")
             self.data.initialised_fullscreen = False
         
-        #count how many inputs have past since controle was last pressed 
+        #checks if control has been pressed or not 
         if event.keysym == "Control_L":
-            self.data.inputs_past_control = 0
-        else:
-            self.data.inputs_past_control += 1
+            self.data.input_past_control = True
+        
+        if event.keysym not in ("Control_L","f"):
+            self.data.input_past_control = False
 
         #when 'f' follows on control it will initialise the fullscreen
-        if event.keysym == "f" and self.data.inputs_past_control == 1:
+        if event.keysym == "f" and self.data.input_past_control == True:
+            self.data.input_past_control = False
             self.handel_fullscreen()
             self.data.initialised_fullscreen = True
             
@@ -178,7 +208,7 @@ class Controller():
                         break
             else:
                 #checks if the input is incorect
-                if event.keysym not in ('Shift_L', 'BackSpace','Caps_Lock','Multi_key',"Control_L",'space'):
+                if event.keysym not in ('Shift_L', 'BackSpace','Caps_Lock','Multi_key',"Control_L"):
                     if self.data.definedText[self.len_textbox - 1] != event.keysym:
                         self.inputInorrect()
                         self.hanel_mistakes(self.data.definedText[self.len_textbox - 1])
@@ -277,7 +307,7 @@ class Controller():
         #makes shure the window is rendert before trying to get its data
         self.gui.root.update_idletasks()
         frame_width = self.gui.frame.winfo_width()
-        self.frame_height = self.gui.root.winfo_height()
+        self.frame_height = self.gui.frame.winfo_height()
 
         self.total_width = len(self.data.definedText) * self.data.char_spacing
 
@@ -297,12 +327,13 @@ class Controller():
     def delete_wigets(self):
         #delete everything in frame
         for widget in self.gui.frame.winfo_children():
-            widget.destroy()
+            if widget not in (self.gui.stat_button, self.gui.wpm_meter, self.gui.average_wpm):
+                widget.destroy()
    
     #sets the wpm_Label coordinats dynamicly
     def set_WPM_Labels(self):
         
-        frame_height = self.gui.root.winfo_height()
+        frame_height = self.gui.frame.winfo_height()
         frame_width = self.gui.frame.winfo_width()
 
         total_wpm_meter_width = self.gui.wpm_meter.winfo_reqwidth()
@@ -368,9 +399,92 @@ class Controller():
 
         else:
             self.data.mistake_array.append([char,1])
-        print(self.data.mistake_array)
+
+        self.mistake_array_sorter()
+
+    #sorts the mistake_array
+    def mistake_array_sorter(self):
+
+        #so that the len is sutibel
+        len_mistake_array = len(self.data.mistake_array) - 1
+        
+        #goes through the entire array
+        for i in range(len_mistake_array):
+
+            biggest_int = 0
+
+            #skips the already sorted rear positions 
+            for u in range((len_mistake_array - i) + 1):
+
+                if self.data.mistake_array[u][1] > biggest_int:
+
+                    biggest_int = self.data.mistake_array[u][1]
+                    biggest_int_index = u
+
+            #the bigggest position gets put to the end of the array exerpt by 
+            #switching the two poitions
+            char_storage = self.data.mistake_array[len_mistake_array - i][0]
+            int_storage = self.data.mistake_array[len_mistake_array - i][1]
+
+            self.data.mistake_array[(len_mistake_array - i)][0] = self.data.mistake_array[biggest_int_index][0]
+            self.data.mistake_array[(len_mistake_array - i)][1] = self.data.mistake_array[biggest_int_index][1]
+
+            self.data.mistake_array[biggest_int_index][0] = char_storage
+            self.data.mistake_array[biggest_int_index][1] = int_storage
+
+    #raises the stat_frame to the foreground
+    def show_stat_frame(self):
+        
+        self.stat_manager.build_graph()
+        self.gui.stat_frame.tkraise()
+
+    
+    #raises the  main frame to the foreground
+    def show_main_frame(self):
+
+        self.gui.frame.tkraise()
 
 
-if __name__ == "__main__":
-    controller = Controller()
-    controller.gui.root.mainloop()
+
+class Stat_manager():
+    
+    def __init__(self,controller):
+        self.controller = controller
+        self.frame = self.controller.gui.stat_frame
+
+
+    def build_graph(self):
+        
+        # WPM graph
+        fig1 = plt.Figure(figsize=(4, 2.5), dpi=100)
+        ax1 = fig1.add_subplot(111)
+        ax1.plot(self.controller.data.average_wpm_array, marker='o', color='orange')
+        ax1.set_title("WPM graph")
+        ax1.set_ylabel("WPM")
+        ax1.set_xlabel("Session")
+
+        canvas1 = FigureCanvasTkAgg(fig1, master=self.frame)
+        canvas1.draw()
+        canvas1.get_tk_widget().place(x=20, y=20)
+
+        # Beispiel 2: Fehlerhäufigkeit
+        fig2 = plt.Figure(figsize=(4, 2.5), dpi=100)
+        ax2 = fig2.add_subplot(111)
+
+        # Zeichne die häufigsten Fehlerzeichen
+        chars = [x[0] for x in self.controller.data.mistake_array]
+        counts = [x[1] for x in self.controller.data.mistake_array]
+        ax2.bar(chars, counts, color='red')
+        ax2.set_title("Häufige Fehler")
+        ax2.set_ylabel("Anzahl")
+        ax2.set_xlabel("Zeichen")
+
+        canvas2 = FigureCanvasTkAgg(fig2, master=self.frame)
+        canvas2.draw()
+        canvas2.get_tk_widget().place(x=450, y=20)
+
+
+
+
+controller = Controller()
+controller.gui.root.mainloop()

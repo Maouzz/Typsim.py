@@ -94,19 +94,20 @@ class GUI():
         self.stat_frame = Frame(self.container, bg="black")
         self.stat_frame.place(relheight=1, relwidth=1)
 
-        self.stat_button = Button(self.stat_frame,text="Back",command=self.controller.show_main_frame,font=('Courier New',10),fg="black",bg="orange")
-        self.stat_button.place(x=0,y=0)
+        self.back_button = Button(self.stat_frame,text="Back",activebackground="green",command=self.controller.show_main_frame,font=('Courier New',10),fg="black",bg="orange")
+        self.back_button.place(x=0,y=0)
         
         """
         insert everything in stat_frame here
         """
         
+        #makes it so that the main frame is above the stats frame
         self.frame.tkraise()
 
         #declairs the wpm labels 
-        self.wpm_meter = Label(self.frame,text="WPM:  ",bg="black",fg="orange",font=('Courier New',20))
+        self.wpm_meter = Label(self.frame,text="WPM:  0",bg="black",fg="orange",font=('Courier New',20))
         
-        self.average_wpm = Label(self.frame,text="average WPM:  ",fg="orange",bg="black",font=('Courier New',20))
+        self.average_wpm = Label(self.frame,text="average WPM:  0",fg="orange",bg="black",font=('Courier New',20))
 
         #sets the textbox so that the focus is on it but it is located out of the frame
         #so that you can tipe but cant see it 
@@ -116,8 +117,8 @@ class GUI():
         self.textbox.focus_set()
 
         self.stat_button = Button(self.frame,text="Stats",bg="orange",fg="black",activebackground="green",
-                                  highlightcolor="orange",relief="solid",font=('Courier New',8),command=self.controller.show_stat_frame)
-        self.stat_button.place(x=0)
+                                  highlightcolor="orange",font=('Courier New',8),command=self.controller.show_stat_frame)
+        self.stat_button.place(x=0,y=0)
 
     #binds the textbox inputs to the handel_keypress in controller
     def onKeyPress(self,event):
@@ -132,6 +133,10 @@ class Controller():
         self.data = Data()
         self.gui = GUI(self)
         self.stat_manager = Stat_manager(self)
+
+        self.in_stat_frame = False
+
+        self.last_stat_frame_size = (self.gui.stat_frame.winfo_width(), self.gui.stat_frame.winfo_height())
 
         self.exit_fullscreen_var = False
         self.start_time = None
@@ -208,27 +213,44 @@ class Controller():
                         break
             else:
                 #checks if the input is incorect
-                if event.keysym not in ('Shift_L', 'BackSpace','Caps_Lock','Multi_key',"Control_L"):
+                if event.keysym not in ('Shift_L', 'BackSpace','Caps_Lock','Multi_key',"Control_L","space"):
+                    
                     if self.data.definedText[self.len_textbox - 1] != event.keysym:
-                        self.inputInorrect()
-                        self.hanel_mistakes(self.data.definedText[self.len_textbox - 1])
+                        
+                        #because otherwise space would be couted double
+                        if self.data.definedText[self.len_textbox - 1] != " ":
+                            self.inputInorrect()
+                            self.hanel_mistakes(self.data.definedText[self.len_textbox - 1])
                         
                     #on correct
                     else:
                         self.inutCorrect()
 
                 #extra rules for space
-                if event.keysym != 'space' and self.data.definedText[self.len_textbox - 1] == ' ':
-                    self.wigetarray[self.len_textbox - 1].config(fg="red",text="_")
-                
-                if event.keysym == 'space' and self.data.definedText[self.len_textbox - 1] == ' ':
-                    self.wigetarray[self.len_textbox - 1].config(text=" ")
+                if event.keysym == 'space':
 
+                    if self.data.definedText[self.len_textbox - 1] == ' ':
+
+                        self.wigetarray[self.len_textbox - 1].config(text=" ")
+                    else:
+
+                        self.hanel_mistakes(self.data.definedText[self.len_textbox - 1])
+                        self.inputInorrect()
+                else:
+
+                    if self.data.definedText[self.len_textbox - 1] == ' ':
+
+                        if event.keysym != "BackSpace":
+
+                            self.wigetarray[self.len_textbox - 1].config(fg="red",text="_")
+                            self.hanel_mistakes("__")
+
+                    
             #on backspace
             if event.keysym == 'BackSpace':
                 self.input_return()
 
-        #on backspace
+        #on backspace even if the max length has been reached
         elif event.keysym == 'BackSpace':
             self.input_return()
 
@@ -306,7 +328,7 @@ class Controller():
 
         #makes shure the window is rendert before trying to get its data
         self.gui.root.update_idletasks()
-        frame_width = self.gui.frame.winfo_width()
+        self.frame_width = self.gui.frame.winfo_width()
         self.frame_height = self.gui.frame.winfo_height()
 
         self.total_width = len(self.data.definedText) * self.data.char_spacing
@@ -314,10 +336,10 @@ class Controller():
         self.cordinatarray  = []
 
         if len(self.data.definedText) % 2 == 0:
-            firstpos = int((frame_width - self.total_width) / 2)
+            firstpos = int((self.frame_width - self.total_width) / 2)
 
         else:
-            firstpos = int((frame_width - (self.total_width + 1)) / 2)
+            firstpos = int((self.frame_width - (self.total_width + 1)) / 2)
 
         for i in range(len(self.data.definedText)):
             position = firstpos + i*self.data.char_spacing
@@ -361,25 +383,33 @@ class Controller():
             self.gui.root.state("normal")  # if maximised
             self.gui.root.geometry("800x500")
         
-    #when the window gets changed it checks if a new resize is apropriate
+    #when the window gets changed it triggers
     def on_resize(self,event):
         
         #checks if wigetarray exist so no error is thrown 
         if hasattr(controller,"wigetarray"):
             
+            if self.in_stat_frame:
+                self.resize_after_id = self.gui.root.after(20,self.handel_stat_resize)
+                return
+            
             new_size = (event.width, event.height)
 
+            #only rezies if an acual new size is passed 
             if new_size != self.last_size:
                 self.last_size = new_size
 
+                #cancels the old resize if a new one is passed
                 if self.resize_after_id:
                     self.gui.root.after_cancel(self.resize_after_id)
-                
+
+                #declares resize_after_id and calls handel_resize after waiting for 
+                #the resize to happen and then the resize_after_id will be nulled
                 self.resize_after_id = self.gui.root.after(5,self.handel_resize)
     
     #when a resize is apropriate it recenters the Labels
     def handel_resize(self):
-
+        
         self.set_WPM_Labels()
         self.generateCordinates()
 
@@ -387,7 +417,26 @@ class Controller():
             widget.place(x= self.cordinatarray[i],y= self.frame_height * 0.3)
         
         self.resize_after_id = None
-             
+
+    #resizes stat_frame when apropriate
+    def handel_stat_resize(self):    
+
+        new_size = (self.gui.stat_frame.winfo_width(), self.gui.stat_frame.winfo_height())
+                
+        #cancels the old resize if a new one is passed
+        if self.resize_after_id:
+            self.gui.root.after_cancel(self.resize_after_id)
+
+        if new_size == self.last_stat_frame_size:
+            
+            self.resize_after_id = None
+            return
+
+        self.last_stat_frame_size = new_size
+        self.delete_stat_frame()
+        self.stat_manager.build_graph()
+        self.resize_after_id = None
+
     #documents the mistakes and there frequency 
     def hanel_mistakes(self,char):
 
@@ -404,30 +453,27 @@ class Controller():
 
     #sorts the mistake_array
     def mistake_array_sorter(self):
-
-        #so that the len is sutibel
-        len_mistake_array = len(self.data.mistake_array) - 1
-        
+       
         #goes through the entire array
-        for i in range(len_mistake_array):
+        for i in range(len(self.data.mistake_array)):
 
             biggest_int = 0
 
-            #skips the already sorted rear positions 
-            for u in range((len_mistake_array - i) + 1):
+            #skips the already sorted first positions by having the range be i->len(array)
+            for u in range(i,(len(self.data.mistake_array))):
 
                 if self.data.mistake_array[u][1] > biggest_int:
 
                     biggest_int = self.data.mistake_array[u][1]
                     biggest_int_index = u
 
-            #the bigggest position gets put to the end of the array exerpt by 
+            #the bigggest position gets put to the beginning of the array exerpt by 
             #switching the two poitions
-            char_storage = self.data.mistake_array[len_mistake_array - i][0]
-            int_storage = self.data.mistake_array[len_mistake_array - i][1]
+            char_storage = self.data.mistake_array[i][0]
+            int_storage = self.data.mistake_array[i][1]
 
-            self.data.mistake_array[(len_mistake_array - i)][0] = self.data.mistake_array[biggest_int_index][0]
-            self.data.mistake_array[(len_mistake_array - i)][1] = self.data.mistake_array[biggest_int_index][1]
+            self.data.mistake_array[i][0] = self.data.mistake_array[biggest_int_index][0]
+            self.data.mistake_array[i][1] = self.data.mistake_array[biggest_int_index][1]
 
             self.data.mistake_array[biggest_int_index][0] = char_storage
             self.data.mistake_array[biggest_int_index][1] = int_storage
@@ -435,53 +481,110 @@ class Controller():
     #raises the stat_frame to the foreground
     def show_stat_frame(self):
         
-        self.stat_manager.build_graph()
+        self.in_stat_frame = True
         self.gui.stat_frame.tkraise()
 
-    
+        self.delete_stat_frame()
+
+        self.stat_manager.build_graph()
+
     #raises the  main frame to the foreground
     def show_main_frame(self):
 
+        self.handel_resize()
+
+        self.in_stat_frame = False
         self.gui.frame.tkraise()
+        self.gui.textbox.focus_set()
+
+    #deletes the wigets in stat frame exept the button
+    def delete_stat_frame(self):
+
+        for wiget in self.gui.stat_frame.winfo_children():
+            
+            #the , is necesssary otherwise it winn not cout as an tupe and break
+            if wiget not in (self.gui.back_button,):
+                wiget.destroy()
 
 
-
+#manages gui in the stat_frame
 class Stat_manager():
     
+    #sets controller (be carefull not to create a new one with Controller()) and stat_frame
     def __init__(self,controller):
         self.controller = controller
         self.frame = self.controller.gui.stat_frame
 
-
+    #creates the graphs
     def build_graph(self):
         
+        frame_width = self.controller.gui.stat_frame.winfo_width()
+        frame_height = self.controller.gui.stat_frame.winfo_height()
+        dpi = 100
+        figsize = ((frame_width / dpi) / 2,(frame_height / dpi) / 2)
+
         # WPM graph
-        fig1 = plt.Figure(figsize=(4, 2.5), dpi=100)
-        ax1 = fig1.add_subplot(111)
+        self.fig1 = plt.Figure(figsize= figsize, dpi=dpi)
+        self.fig1.patch.set_facecolor('black')
+
+        ax1 = self.fig1.add_subplot(111)
         ax1.plot(self.controller.data.average_wpm_array, marker='o', color='orange')
-        ax1.set_title("WPM graph")
-        ax1.set_ylabel("WPM")
-        ax1.set_xlabel("Session")
+        ax1.set_title("WPM graph", color = "orange")
+        #ax1.set_ylabel("WPS", color="orange", fontsize=12)
+        ax1.tick_params(axis='x', colors='orange')  
+        ax1.tick_params(axis='y', colors='orange')  
+        ax1.spines["left"].set_color("orange")
+        ax1.spines["bottom"].set_color("orange")
+        ax1.set_facecolor("black")
 
-        canvas1 = FigureCanvasTkAgg(fig1, master=self.frame)
-        canvas1.draw()
-        canvas1.get_tk_widget().place(x=20, y=20)
 
-        # Beispiel 2: Fehlerhäufigkeit
-        fig2 = plt.Figure(figsize=(4, 2.5), dpi=100)
-        ax2 = fig2.add_subplot(111)
 
-        # Zeichne die häufigsten Fehlerzeichen
+        self.canvas1 = FigureCanvasTkAgg(self.fig1, master=self.frame)
+        self.canvas1.draw()
+
+        #mistake graph
+        self.fig2 = plt.Figure(figsize= figsize, dpi=dpi)
+        self.fig2.patch.set_facecolor('black')
+
         chars = [x[0] for x in self.controller.data.mistake_array]
         counts = [x[1] for x in self.controller.data.mistake_array]
-        ax2.bar(chars, counts, color='red')
-        ax2.set_title("Häufige Fehler")
-        ax2.set_ylabel("Anzahl")
-        ax2.set_xlabel("Zeichen")
 
-        canvas2 = FigureCanvasTkAgg(fig2, master=self.frame)
-        canvas2.draw()
-        canvas2.get_tk_widget().place(x=450, y=20)
+        ax2 = self.fig2.add_subplot(111)
+        ax2.bar(chars, counts, color='red')
+        ax2.set_title("mistakes", color = "orange")
+        #ax2.set_ylabel("WPS", color="orange", fontsize=12)
+        ax2.tick_params(axis='x', colors='orange')  
+        ax2.tick_params(axis='y', colors='orange')  
+        ax2.spines["left"].set_color("orange")
+        ax2.spines["bottom"].set_color("orange")
+        ax2.set_facecolor("black")
+
+
+        self.canvas2 = FigureCanvasTkAgg(self.fig2, master=self.frame)
+        self.canvas2.draw()
+
+        figsize = ((frame_width / dpi),((frame_height - 60) / dpi) / 2)
+        #perma stats
+        self.fig3 = plt.Figure(figsize=figsize,dpi=dpi)
+        self.fig3.patch.set_facecolor('black')
+        
+        ax3 = self.fig3.add_subplot(111)
+
+        ax3.set_title("Total stats", color = "orange")
+        #ax3.set_ylabel("WPS", color="orange", fontsize=12)
+        ax3.tick_params(axis='x', colors='orange')  
+        ax3.tick_params(axis='y', colors='orange')  
+        ax3.spines["left"].set_color("orange")
+        ax3.spines["bottom"].set_color("orange")
+        ax3.set_facecolor("black")
+
+        self.canvas3 = FigureCanvasTkAgg(self.fig3, master=self.frame)
+        self.canvas3.draw()
+
+        self.canvas1.get_tk_widget().place(x=frame_width * 0.0, y=frame_height * 0.0 + 30)
+        self.canvas2.get_tk_widget().place(x=frame_width * 0.5, y=frame_height * 0.0 + 30)
+        self.canvas3.get_tk_widget().place(x=frame_width * 0.0, y=(frame_height * 0.5) + 30)
+        
 
 
 

@@ -15,6 +15,8 @@ to do:
         add different difficulties
 
     add charcount to Total_stats for more precise calculations
+
+    repair calculation for stats
 """
 
 #haldels data
@@ -588,7 +590,7 @@ class Stat_manager():
         counts = [x[1] for x in self.controller.data.mistake_array]
 
         ax2 = self.fig2.add_subplot(111)
-        ax2.bar(chars, counts, color='red')
+        ax2.bar(chars, counts, color="#FF2121")
         ax2.set_title("mistakes", color = "orange")
         ax2.tick_params(axis='x', colors='orange')  
         ax2.tick_params(axis='y', colors='orange')  
@@ -611,22 +613,22 @@ class Stat_manager():
         ax3.tick_params(axis='x', colors='orange')
         ax3.tick_params(axis='y', colors='orange')
         ax3.patch.set_visible(False)
-        ax3.set_ylabel("WPM",color="orange")
-
+        ax3.set_ylabel("■ word total ,● WPM",color="orange")
+        ax3.bar(self.date_array,self.words_written,color="#DE7A00", zorder=0)
         
         # Twin-axie ax4
         ax4 = ax3.twinx()
-        ax4.plot(self.date_array,self.mistakes_array, marker='o', color='red', zorder=1)
+        ax4.plot(self.date_array,self.mistakes_array, marker='o', color="#FF2121", zorder=1)
         ax4.set_facecolor("none")
         ax4.set_label("mistakes")
-        ax4.tick_params(axis='y', colors='red')
-        ax4.spines["right"].set_color("red")
+        ax4.tick_params(axis='y', colors="#FF2121")
+        ax4.spines["right"].set_color("#FF2121")
         ax4.spines["left"].set_color("orange")
         ax4.spines["bottom"].set_color("orange")
         ax4.set_zorder(1)
-        ax4.set_ylabel("av. mistakes",color="red")
+        ax4.set_ylabel("av. mistakes",color="#FF2121")
         #ax4.legend(loc="upper left",facecolor="black",edgecolor="black",labelcolor="orange",bbox_to_anchor=(0.000001, 1),borderaxespad=0.)
-        
+
         self.canvas3 = FigureCanvasTkAgg(self.fig3, master=self.frame)
         self.canvas3.draw()
 
@@ -637,7 +639,7 @@ class Stat_manager():
         
     #adds new day based entrys in Totals_stats
     def handel_total_stats(self):
-        
+        print(self.controller.data.words_completed)
         total_mistakes = 0
         previous_WPM = 0
         total_previous_mistakes = 0
@@ -685,7 +687,7 @@ class Stat_manager():
                     if self.controller.data.words_completed == 1:
                         self.controller.data.words_completed = int(previous_words_written)
                         self.controller.data.total_average_wpm = int(previous_WPM)
-                        total_average_mistakes = round(float(total_previous_mistakes),3)
+                        total_average_mistakes = total_previous_mistakes
 
                     text = f"{self.controller.data.date} : average WPM= {math.floor((self.controller.data.total_average_wpm + int(previous_WPM))/2)} ,average mistakes= {round((float(total_average_mistakes) + float(total_previous_mistakes))/2,3)} , words written= {math.floor((int(previous_words_written) + self.controller.data.words_completed)/2)} \n"
                     break
@@ -724,6 +726,7 @@ class Stat_manager():
         self.WPM_array = []
         self.mistakes_array = []
         self.date_array = []
+        self.words_written = []
 
         with open(r"C:\Users\david\Code\VS-Code\Neuer Ordner\Total_stats.txt","r",encoding="utf-8") as k:
             rows = k.readlines()
@@ -745,7 +748,12 @@ class Stat_manager():
                     if row_exerpt[i] == "mistakes=":
                         self.mistakes_array.append(float(row_exerpt[i + 1]))
                         break
-
+                
+                #copys the words written
+                for i in range(len(row_exerpt)):
+                    if row_exerpt[i] == "written=":
+                        self.words_written.append(int(row_exerpt[i + 1]))
+                        break
                 self.date_array.append(row_exerpt[0])
 
 

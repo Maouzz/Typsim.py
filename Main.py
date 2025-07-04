@@ -14,9 +14,7 @@ to do:
         add extra language
         add different difficulties
 
-    add charcount to Total_stats for more precise calculations
-
-    repair calculation for stats
+    fix the timer when going fullscrean 
 """
 
 #haldels data
@@ -539,9 +537,9 @@ class Controller():
 
     #asks if you really want to close the window and calls handel_totla_stats
     def on_closing(self):
-
-        self.stat_manager.handel_total_stats()
+        
         if tk.messagebox.askokcancel("","Do you really want to quit?"):
+            self.stat_manager.handel_total_stats()
             self.gui.root.destroy()
 
 
@@ -639,7 +637,6 @@ class Stat_manager():
         
     #adds new day based entrys in Totals_stats
     def handel_total_stats(self):
-        print(self.controller.data.words_completed)
         total_mistakes = 0
         previous_WPM = 0
         total_previous_mistakes = 0
@@ -685,14 +682,21 @@ class Stat_manager():
 
                     #to prevent the average from going down if you never type
                     if self.controller.data.words_completed == 1:
-                        self.controller.data.words_completed = int(previous_words_written)
-                        self.controller.data.total_average_wpm = int(previous_WPM)
-                        total_average_mistakes = total_previous_mistakes
+                        text = f"{self.controller.data.date} : average WPM= {previous_WPM} ,average mistakes= {total_previous_mistakes} , words written= {previous_words_written} \n"
 
-                    text = f"{self.controller.data.date} : average WPM= {math.floor((self.controller.data.total_average_wpm + int(previous_WPM))/2)} ,average mistakes= {round((float(total_average_mistakes) + float(total_previous_mistakes))/2,3)} , words written= {math.floor((int(previous_words_written) + self.controller.data.words_completed)/2)} \n"
+                    #the note written when you typed and there is an entry for the day already
+                    else:
+                        average_mistakes = self.calculate_averages(self.controller.data.words_completed,int(previous_words_written),float(total_average_mistakes),float(total_previous_mistakes))
+                        calc_WPM = math.floor((self.controller.data.total_average_wpm + int(previous_WPM))/2)
+
+                        text = f"{self.controller.data.date} : average WPM= {calc_WPM} ,average mistakes= {average_mistakes} , words written= {self.controller.data.words_completed + int(previous_words_written)} \n"
                     break
-            
-        #prints to the txt---
+                
+                self.print_to_Total_stats(text)
+
+    #prints to the txt
+    def print_to_Total_stats(self,text):
+        
         #reads all lines in the txt to lines
         with open(r"C:\Users\david\Code\VS-Code\Neuer Ordner\Total_stats.txt","r",encoding="utf-8") as k: 
             lines = k.readlines() 
@@ -719,7 +723,7 @@ class Stat_manager():
                             
         with open(r"C:\Users\david\Code\VS-Code\Neuer Ordner\Total_stats.txt","a",encoding="utf-8") as k: 
            k.write(text)
-    
+
     #reads the Total_stats txt to import all stats
     def set_total_stats_array(self):
 
@@ -756,8 +760,15 @@ class Stat_manager():
                         break
                 self.date_array.append(row_exerpt[0])
 
+    #calculates the average mistakes for the total_stat handler
+    def calculate_averages(self,words,previous_words,average_mistakes,average_previous_mistakes):
+        
+        mistakes = average_mistakes * words
+        previous_mistakes = average_previous_mistakes * previous_words
 
+        average = round((mistakes + previous_mistakes) / (words + previous_words),3)
 
+        return average
 
 if __name__ == "__main__":
 

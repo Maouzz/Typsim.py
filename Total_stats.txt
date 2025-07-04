@@ -1,5 +1,5 @@
-2025-06-23 : average WPM= 30 ,average mistakes= 0.9 , words written= 5
 2025-06-25 : average WPM= 27 ,average mistakes= 1.618 , words written= 17
-2025-06-27 : average WPM= 20 ,average mistakes= 8.0 , words written= 1
+2025-06-27 : average WPM= 20 ,average mistakes= 0.44 , words written= 1
 2025-06-29 : average WPM= 34 ,average mistakes= 0.326 , words written= 4 
 2025-07-03 : average WPM= 29 ,average mistakes= 0.001 , words written= 50 
+2025-07-04 : average WPM= 31 , mistakes= 0.667 , words written= 21 

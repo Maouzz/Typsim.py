@@ -17,6 +17,7 @@ to do:
     fix the timer when going fullscrean 
 """
 
+
 #haldels data
 class Data():
 
